@@ -470,6 +470,14 @@ int eventWatch(void* userdata, SDL_Event* event)
     return 0;
 }
 
+SDL_FPoint toFPoint(SDL_Point p)
+{
+    SDL_FPoint fPoint;
+    fPoint.x = p.x;
+    fPoint.y = p.y;
+    return fPoint;
+}
+
 int main(int argc, char* argv[])
 {
     std::srand(std::time(0));
@@ -481,11 +489,19 @@ int main(int argc, char* argv[])
     window = SDL_CreateWindow("RealTimeIllustration", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_RESIZABLE);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     TTF_Font* robotoF = TTF_OpenFont("res/roboto.ttf", 72);
+    SDL_Texture* circleT = IMG_LoadTexture(renderer, "res/circle.png");
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
     SDL_RenderSetScale(renderer, w / (float)windowWidth, h / (float)windowHeight);
     SDL_AddEventWatch(eventWatch, 0);
     bool running = true;
+    SDL_Texture* drawingT = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight);
+    SDL_SetRenderTarget(renderer, drawingT);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
+    SDL_RenderClear(renderer);
+    SDL_RenderPresent(renderer);
+    SDL_SetRenderTarget(renderer, 0);
+    int brushSize = 32;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -516,9 +532,42 @@ int main(int argc, char* argv[])
                 realMousePos.x = event.motion.x;
                 realMousePos.y = event.motion.y;
             }
+            if (event.type == SDL_MOUSEWHEEL) {
+                if (event.wheel.y > 0) // scroll up
+                {
+                    brushSize += 2;
+                    if (brushSize > 128) {
+                        brushSize = 128;
+                    }
+                }
+                if (event.wheel.y < 0) // scroll down
+                {
+                    brushSize -= 2;
+                    if (brushSize <= 0) {
+                        brushSize = 1;
+                    }
+                }
+            }
         }
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        if (buttons[SDL_BUTTON_LEFT]) {
+            SDL_SetRenderTarget(renderer, drawingT);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+            SDL_RenderFillCircle(renderer, mousePos.x, mousePos.y, brushSize);
+            SDL_RenderPresent(renderer);
+            SDL_SetRenderTarget(renderer, 0);
+        }
+        if (buttons[SDL_BUTTON_RIGHT]) {
+            SDL_SetRenderTarget(renderer, drawingT);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
+            SDL_RenderFillCircle(renderer, mousePos.x, mousePos.y, brushSize);
+            SDL_RenderPresent(renderer);
+            SDL_SetRenderTarget(renderer, 0);
+        }
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
         SDL_RenderClear(renderer);
+        SDL_RenderCopyF(renderer, drawingT, 0, 0);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        SDL_RenderFillCircle(renderer, mousePos.x, mousePos.y, brushSize);
         SDL_RenderPresent(renderer);
     }
     // TODO: On mobile remember to use eventWatch function (it doesn't reach this code when terminating)
