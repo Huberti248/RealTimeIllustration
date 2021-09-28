@@ -478,6 +478,11 @@ SDL_FPoint toFPoint(SDL_Point p)
     return fPoint;
 }
 
+struct ColorRect {
+    SDL_FRect r{};
+    SDL_Color color{};
+};
+
 int main(int argc, char* argv[])
 {
     std::srand(std::time(0));
@@ -487,21 +492,43 @@ int main(int argc, char* argv[])
     TTF_Init();
     SDL_GetMouseState(&mousePos.x, &mousePos.y);
     window = SDL_CreateWindow("RealTimeIllustration", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_RESIZABLE);
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE | SDL_RENDERER_TARGETTEXTURE);
     TTF_Font* robotoF = TTF_OpenFont("res/roboto.ttf", 72);
-    SDL_Texture* circleT = IMG_LoadTexture(renderer, "res/circle.png");
     int w, h;
     SDL_GetWindowSize(window, &w, &h);
     SDL_RenderSetScale(renderer, w / (float)windowWidth, h / (float)windowHeight);
     SDL_AddEventWatch(eventWatch, 0);
     bool running = true;
-    SDL_Texture* drawingT = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, windowWidth, windowHeight);
+    SDL_Texture* drawingT = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_TARGET, windowWidth - 40, windowHeight);
     SDL_SetRenderTarget(renderer, drawingT);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
     SDL_RenderClear(renderer);
     SDL_RenderPresent(renderer);
     SDL_SetRenderTarget(renderer, 0);
     int brushSize = 32;
+    std::vector<ColorRect> colorRects;
+    for (int i = 0; i < 10; ++i) {
+        colorRects.push_back(ColorRect());
+        colorRects.back().r.w = 16;
+        colorRects.back().r.h = 16;
+        colorRects.back().r.x = windowWidth - colorRects.back().r.w;
+        if (i == 0) {
+            colorRects.back().r.y = 0;
+        }
+        else {
+            colorRects.back().r.y = colorRects[i - 1].r.y + colorRects[i - 1].r.h;
+        }
+        if (i == 0) {
+            colorRects.back().color = { 255, 0, 0 };
+        }
+        else if (i == 1) {
+            colorRects.back().color = { 0, 255, 0 };
+        }
+        else if (i == 2) {
+            colorRects.back().color = { 0, 0, 255 };
+        }
+    }
+    SDL_Color activeColor{ 0, 0, 0 };
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -520,6 +547,11 @@ int main(int argc, char* argv[])
             }
             if (event.type == SDL_MOUSEBUTTONDOWN) {
                 buttons[event.button.button] = true;
+                for (int i = 0; i < colorRects.size(); ++i) {
+                    if (SDL_PointInFRect(&mousePos,&colorRects[i].r)) {
+                        activeColor = colorRects[i].color;
+                    }
+                }
             }
             if (event.type == SDL_MOUSEBUTTONUP) {
                 buttons[event.button.button] = false;
@@ -551,7 +583,7 @@ int main(int argc, char* argv[])
         }
         if (buttons[SDL_BUTTON_LEFT]) {
             SDL_SetRenderTarget(renderer, drawingT);
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+            SDL_SetRenderDrawColor(renderer, activeColor.r, activeColor.g, activeColor.b, activeColor.a);
             SDL_RenderFillCircle(renderer, mousePos.x, mousePos.y, brushSize);
             SDL_RenderPresent(renderer);
             SDL_SetRenderTarget(renderer, 0);
@@ -565,9 +597,18 @@ int main(int argc, char* argv[])
         }
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
         SDL_RenderClear(renderer);
-        SDL_RenderCopyF(renderer, drawingT, 0, 0);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        SDL_FRect r;
+        r.w = windowWidth - 40;
+        r.h = windowHeight;
+        r.x = 0;
+        r.y = 0;
+        SDL_RenderCopyF(renderer, drawingT, 0, &r);
+        SDL_SetRenderDrawColor(renderer, activeColor.r, activeColor.g, activeColor.b, activeColor.a);
         SDL_RenderFillCircle(renderer, mousePos.x, mousePos.y, brushSize);
+        for (int i = 0; i < colorRects.size(); ++i) {
+            SDL_SetRenderDrawColor(renderer, colorRects[i].color.r, colorRects[i].color.g, colorRects[i].color.b, colorRects[i].color.a);
+            SDL_RenderFillCircle(renderer, colorRects[i].r.x + colorRects[i].r.w / 2, colorRects[i].r.y + colorRects[i].r.h / 2, colorRects[i].r.w / 2);
+        }
         SDL_RenderPresent(renderer);
     }
     // TODO: On mobile remember to use eventWatch function (it doesn't reach this code when terminating)
